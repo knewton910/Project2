@@ -1,0 +1,347 @@
+---
+title: "Project 2"
+author: "Kalyn Newton"
+bibliography: bibliography.bib
+csl: apa.csl
+nocite: "@*" 
+format: docx
+editor: visual
+echo: false
+---
+
+:::{.center}
+**Is there an association between age at first live birth and current socioeconomic status among U.S. women?**
+
+Kalyn Newton
+
+Master of Public Health, Morehouse School of Medicine
+
+Anny D. Rodriguez, PhD, MPH
+
+21 March 2026
+:::
+
+\newpage
+
+# Project 2: Cleaning & Preparing Health Data for Analysis (NHANES)
+
+------------------------------------------------------------------------
+
+## Introduction
+
+In the United States, roughly 20 percent of women give birth before age 20, and early childbearing can have lasting effects on economic stability and health (Levine, 2009). The timing of first childbirth is a critical public health concern, as socioeconomic disadvantage strongly shapes access to education, resources, and overall well-being (Moore et al., 1993; Khan et al., 2023). 
+The National Health and Nutrition Examination Survey (NHANES), conducted by the U.S. National Center for Health Statistics, collects nationally representative data on health, nutrition, and demographics. This data provides a unique opportunity to examine how reproductive timing relates to current socioeconomic status (Council, 1987). Data from 2009 – 2012 cycles, including approximately 5,000 participants, allow for robust population-level analyses to inform public health interventions and policy. 
+Socioeconomic status (SES), measured by poverty income ratio (PIR), is the primary outcome of interest. Early childbearing is consistently associated with lower education, reduced income, and larger family size, whereas delayed childbearing is generally linked to higher educational attainment and economic stability (Câmara et al., 2015; Gigante et al., 2019; Monroy De Velasco, 1982). Social determinants of health—including race/ethnicity, education, and access to services—interact with reproductive timing to shape these outcomes (Jakubowski et al., 2023; Khan et al., 2023). 
+Although many studies explore socioeconomic predictors of adolescent pregnancy, fewer examine how the timing of first childbirth predicts current economic outcomes (Levine, 2009; Moore et al., 1993). This study addresses that gap by asking: “Is there an association between age at first live birth and current socioeconomic status among U.S. women?” It is hypothesized that women who had their first child at an older age are less likely to live below the poverty threshold, highlighting the long-term socioeconomic consequences of reproductive timing.
+
+------------------------------------------------------------------------
+
+## Data Preparation
+
+### Part 0: Setup (Load/Install Packages)
+
+```{r}
+#install.packages("knitr")
+
+library(tidyverse)
+library(NHANES)
+library(broom)
+library(knitr)
+```
+
+### Part 1: Exploring the data
+
+```{r}
+data("NHANES")
+
+glimpse (NHANES)
+head(NHANES)
+tail(NHANES)
+summary(NHANES)
+```
+
+### Part 2: Create data set
+
+```{r}
+nhanes_select <- NHANES %>%
+  select(ID, Gender, Age, Race1,   Poverty, Age1stBaby)
+
+nhanes_select
+```
+
+### Part 3: Filtering row with `filter()`
+
+```{r}
+nhanes_female <- nhanes_select %>%
+  filter(Gender == "female")
+
+nhanes_female
+```
+
+### Part 4: Creating new variables
+
+```{r}
+nhanes_agedecade <- nhanes_female %>%
+  mutate(Age1stBabyDecade = ifelse(Age1stBaby < 20, "<20",
+                                   ifelse(Age1stBaby < 30, "20-29",
+                                          ifelse(Age1stBaby < 40, "30-39",
+                                                 ifelse(Age1stBaby < 50, "40-49",
+                                                 ifelse(Age1stBaby < 60, "50-59",
+                                                        ifelse(Age1stBaby < 70, "60-69", "70+")))))))
+
+nhanes_agedecade
+```
+
+```{r}
+nhanes_mutated <- nhanes_agedecade %>%
+  mutate(poverty_status = ifelse(Poverty < 1, 1, 0))
+
+nhanes_mutated         
+```
+
+### Part 5: Cleaning data
+
+```{r}
+nhanes_clean <- nhanes_mutated %>%
+  drop_na(Age1stBaby, Age1stBabyDecade, Poverty, poverty_status)
+
+nhanes_clean
+```
+
+------------------------------------------------------------------------
+
+## Descriptive Statistics
+
+### Data Dictionary Table
+
+```{r}
+data_dictionary <- data.frame(
+  Variable = c("Gender", "Age1stBaby", "Age1stBabyDecade", "Race1", "Poverty", "poverty_status", "Age", "AgeDecade"),
+  Description = c(
+    "Participant gender",
+    "Age at first live birth",
+    "Age at first birth (grouped)",
+    "Race/ethnicity",
+    "Poverty Income Ratio (PIR)",
+    "Poverty status indicator",
+    "Current age of participant",
+    "Current age of participant (grouped)"
+  ),
+  Type = c("Categorical", "Continuous", "Categorical", "Categorical", "Continuous", "Binary", "Continuous", "Categorical"),
+  Coding = c(
+    "Male, Female",
+    "Years",
+    "<20, 20-20, 30-39, 40-49, 50-59, 60-69, 70+",
+    "NHANES categories",
+    "Ratio (0.0 - 5.0+)",
+    "1 = Below poverty, 0 = Above poverty",
+    "Years",
+    "<20, 20-20, 30-39, 40-49, 50-59, 60-69, 70+"
+    )
+)
+
+kable(data_dictionary, caption = "Table 1. Data Dictionary for NHANES Variables Used in Analysis")
+```
+
+```{r}
+descriptivesummary <- nhanes_clean %>%
+  group_by(Age1stBabyDecade) %>%
+  summarise(
+    n = n(),
+    mean_Age1stBaby = mean(Age1stBaby),
+    sd_Age1stBaby = sd(Age1stBaby),
+    median_Age1stBaby = median(Age1stBaby),
+    IQR_Age1stBaby = IQR(Age1stBaby),
+    mean_Poverty = mean(Poverty),
+    sd_Poverty = sd(Poverty),
+    median_Poverty = median(Poverty),
+    IQR_Poverty = IQR(Poverty)
+  )
+
+descriptivesummary
+```
+
+The analytic sample included `r nrow(nhanes_clean)` females with complete data on age at first birth and poverty income ratio (PIR). The mean PIR among females who had their first birth at or before 20 years of age was `r round(descriptivesummary$mean_Poverty[descriptivesummary$Age1stBabyDecade == "<20"], 2)`. The mean PIR among females who had their first birth between 20 and 29 was `r round(descriptivesummary$mean_Poverty[descriptivesummary$Age1stBabyDecade == "20-29"], 2)`. The mean PIR among females who had their first birth between 30 and 39 was `r round(descriptivesummary$mean_Poverty[descriptivesummary$Age1stBabyDecade == "30-39"], 2)`.
+
+```{r}
+race_poverty_summary <- nhanes_clean %>%
+  group_by(Age1stBabyDecade, Race1) %>%
+  summarise(
+    n = n(),
+    below_poverty = sum(poverty_status == 1),
+    percent_below_poverty = mean(poverty_status == 1) * 100,
+    above_poverty = sum(poverty_status == 0),
+    percent_above_poverty = 100 - percent_below_poverty
+  )
+
+race_poverty_summary
+```
+
+The proportion of women living below the poverty threshold ranged from `r round(min(race_poverty_summary$percent_below_poverty), 1)`% to `r round(max(race_poverty_summary$percent_below_poverty), 1)`% across race/ethnic groups.
+
+------------------------------------------------------------------------
+
+## Visualizations
+
+### Descriptive Visual using `ggplot`
+
+```{r}
+nhanes_boxplot <- ggplot(nhanes_clean,
+                         aes(
+                           x = Age1stBabyDecade,
+                           y = Poverty,
+                           fill = Age1stBabyDecade
+                         )) +
+  geom_violin(trim = FALSE, alpha = 0.3) +
+  geom_boxplot(width = 0.25, alpha = 0.9) +
+  stat_summary(fun = median, geom = "point", size = 3, color = "black") +
+  scale_y_continuous(
+    breaks = seq(0, 5, 1),
+    labels = scales::number_format(accuracy = 0.1)
+    ) +
+  theme(legend.position = "none") +
+  labs(
+    title = "Figure 1. Distribution of Poverty by Age at First Baby Decade (NHANES)",
+    x = "Age at First Baby (Decade)",
+    y = "Poverty (ratio)"
+  )
+
+nhanes_boxplot
+```
+
+Figure 1 depicts the distribution of poverty income ratio (PIR) across age at first birth categories. The median PIR among women with first birth before age 20 was `r round(descriptivesummary$median_Poverty[descriptivesummary$Age1stBabyDecade == "<20"], 2)`, with higher median values observed in older age categories (20-29, 30-39). The figure also shows the distribution of PIR value across all groups with varying ranges and interquartile spreads.
+
+### Linear Regression Visualization
+
+```{r}
+nhanes_scatterplot <- ggplot(nhanes_clean,
+                             aes(
+                               x = Age1stBaby,
+                               y = Poverty,
+                               color = Race1
+                             )) +
+  geom_point(size = 4, alpha = 0.3) +
+  geom_smooth(method = "lm", se = TRUE, color = "purple") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_x_continuous(breaks = seq(10, 35, 5)) +
+  scale_y_continuous(
+    breaks = seq(0, 5, 1),
+    labels = scales::number_format(accuracy = 0.1)
+                     ) +
+labs(
+  title = "Figure 2. Age at First Baby vs. Poverty (NHANES)",
+  x = "Age at First Baby (years)",
+  y = "Poverty (ratio)"
+  ) 
+
+nhanes_scatterplot
+```
+
+Figure 2 displays a scatterplot of age at first birth and poverty income ratio (PIR) with an overlaid linear regression trendline. The fitted line shows an upward pattern across gradually increasing values of age at first birth. Points are also color-coded by race/ethnicity.
+
+### Fit Logistic Regression Model
+
+```{r}
+logisticmodel <- glm(poverty_status ~ Age1stBaby,
+                     data = nhanes_clean,
+                     family = "binomial")
+summary(logisticmodel)
+```
+
+### Logistic Regression Visualization
+
+```{r}
+age_grid <- tibble(Age1stBaby = seq(min(nhanes_clean$Age1stBaby, na.rm = TRUE), max(nhanes_clean$Age1stBaby, na.rm = TRUE), by = 1)
+)
+
+age_grid$prob <- predict(logisticmodel, age_grid, type = "response")
+
+nhanes_logscatter <- ggplot(nhanes_clean,
+                            aes(
+                              x = Age1stBaby,
+                              y = poverty_status
+                            )) +
+  geom_point(alpha = 0.3) +
+  geom_line(data = age_grid,
+            aes(
+              x = Age1stBaby,
+              y = prob),
+            color = "red",
+            linewidth = 1.2) +
+  theme_minimal() +
+  labs( 
+    y = "Probability of Poverty",
+    x = "Age at First Baby (years)",
+       title = "Figure 3. Predicted Probability of Poverty by Age at First Baby" )
+
+nhanes_logscatter
+```
+
+Figure 3 depicts the predicted probability of living below poverty threshold by age at first birth. The fitted line shows a downward pattern.
+
+------------------------------------------------------------------------
+
+## Results
+
+### Fit Simple Linear Regression
+
+```{r}
+linearmodel <- lm(Poverty ~ Age1stBaby, data = nhanes_clean)
+summary(linearmodel)
+```
+
+#### Slope and Confidence Interval
+
+```{r}
+slope <- coef(linearmodel)["Age1stBaby"]
+ci <- confint(linearmodel)["Age1stBaby", ]
+```
+
+#### Running Diagnostics
+
+```{r}
+plot(linearmodel, which = 1)
+plot(linearmodel, which = 2)
+```
+
+In the linear regression model, age at first birth was associated with PIR at 95% CI: `r round(confint(linearmodel)["Age1stBaby", 1], 3)` to `r round(confint(linearmodel)["Age1stBaby", 2], 3)`.
+
+### Adjusted Logistic Regression Model
+
+```{r}
+logisticmodel_adj <-glm(poverty_status ~ Age1stBaby + Age + Race1,
+                        data = nhanes_clean,
+                        family = "binomial")
+summary(logisticmodel_adj)
+```
+
+#### Convert Coefficients to Odds Ratios and Find Confidence Intervals
+
+```{r}
+exp(coef(logisticmodel_adj))
+exp(confint(logisticmodel_adj))
+```
+
+In the adjusted logistic regression model, age at first birth was associated with poverty status (OR = `r round(exp(coef(logisticmodel_adj)["Age1stBaby"]), 2)`), 95% CI: `r round(exp(confint(logisticmodel_adj)["Age1stBaby", 1]), 2)` to `r round(exp(confint(logisticmodel_adj)["Age1stBaby", 2]), 2)`.
+
+## Missing Data Review
+
+The analytic sample derived from the NHANES data set excluded male participants and selected variables relevant to socioeconomic status and reproductive history, including age at first live birth (Age1stBaby), current age, race, and poverty income ratio (Poverty). Additionally, new variables, age at first live birth decade grouping (Age1stBabyDecade) and poverty status were created to assist in analyses. Missing data was present primarily in the variables Age1stBaby and Poverty. 
+After excluding observations with missing values in Age1stBaby, Poverty, and derived variables, a total of `r nrow(nhanes_clean)` participants remained in the final analytic sample, compared to `r nrow(nhanes_female)` in the initial female subset. This indicates that a total of `r nrow(nhanes_female) - nrow(nhanes_clean)` cases were removed from sample size due to missing data. The exclusion of these cases may reduce statistical power and affect the representation of the sample, particularly if missingness is not random. For example, women who have not had a live birth or who did not report income may differ systematically in socioeconomic status or demographic characteristics. 
+Missing data in this context is not completely at random, as reproductive history and income reporting may be associated with age, cultural factors, or socioeconomic position. As a result, the analytic sample may over-represent women with complete reproductive histories and economic stability. This can potentially introduce bias into the study causing inaccurate estimation and inferences of the association between age at first birth and socioeconomic status. These limitations should be considered when interpreting the findings.as the observed relationships may underestimate or overestimate the true population.
+
+------------------------------------------------------------------------
+
+## Discussion: Reflection & Interpretation
+
+The timing of first childbirth is more than a personal milestone; it s a turning point that can influence a woman's economic stability for decades. This analyses revealed that women who have their first child at younger ages tend to experience lower socioeconomic status, while those with later first births generally exhibit higher financial stability. These patterns echo the broader life course perspective introduced earlier, illustrating how early reproductive events intertwine with social determinants to shape long-term outcomes (Levine, 2009; Moore et al., 1993).
+The selected analytic approach combined descriptive visualizations, linear regression, and logistic regression to explore these relationships. Violin and box plots provided a clear visual summary of how poverty income ratio (PIR) varied across age at first birth categories, highlighting greater economic disadvantage among women with earlier births. Linear regression quantified this association, showing that each additional year in age at first birth was associated with an increase of `r round(coef(linearmodel)["Age1stBaby"], 3)`in PIR (95% CI: `r round(confint(linearmodel)["Age1stBaby", 1], 3)` to `r round(confint(linearmodel)["Age1stBaby", 2], 3)`). The upward trend observed in the scatterplot, along with residual versus fitted plots and Normal Q-Q plots, confirmed that model assumptions were reasonable and that the relationship between age at first birth and PIR is consistently positive. 
+To examine the probability of living below the poverty threshold a binary variable, poverty_status, was created. This variable indicated whether a participant's PIR fell below 1 corresponding to the U.S. federal poverty threshold for a household of similar size (Sells et al., 2023). Logistic regression revealed that each additional year in age at first birth reduced the odds of living below the poverty line. The adjusted odds ratio for age at first birth is `r round(exp(coef(logisticmodel_adj)["Age1stBaby"]), 2)` with 95% CI from `r round(exp(confint(logisticmodel_adj)["Age1stBaby", 1]), 2)` to `r round(exp(confint(logisticmodel_adj)["Age1stBaby", 2]), 2)`. Age and race/ethnicity were included as cofounders because both are independently associated with economic outcomes and reproductive timing. Controlling for these factors ensures that the model is more accurate in reflecting the relationship between age at first birth and poverty.
+These findings have important public health implications. Early childbearing can perpetuate cycles of disadvantage, affecting education, income, and access to resources, particularly for populations already facing structural inequities (Câmara et al., 2015; Gigante et al., 2019). Interventions aimed at supporting adolescents, promoting reproductive education, and addressing broader social determinants may help reduce long-term socioeconomic disparities. However, limitations must be acknowledged. NHANES data depicts a cross-sectional study, so causal inferences cannot be drawn. In addition, it creates challenges with assessing temporality. Missing data may also introduce bias if women with incomplete reproductive histories or income data differ systematically from those included in the sample. Due to the nature of this data, the study is particularly vulnerable to selection bias information bias, and temporal bias. Despite these limitations, this analysis highlights a meaningful link between reproductive timing and economic outcomes, reinforcing the value of life course perspectives in public health research. Building on these findings, future research could examine additional factors that influence socioeconomic status through multiple linear regression, providing a more complete picture of the pathways shaping economic well-being. 
+
+------------------------------------------------------------------------
+
+## References
+
+[@Câmara2015; @Council1987; @Gigante2019; @Jakubowski2023; @Khan2023; @Levine2009; @MonroyDeVelasco1982; @Moore1993; @Sells2023]
